@@ -9,7 +9,7 @@ public class QualityProfileResource : RestResource
 {
     public string? Name { get; set; }
     public bool UpgradeAllowed { get; set; }
-    public bool AllowMultiSeasonPacks { get; set; }
+    public bool? AllowMultiSeasonPacks { get; set; }
     public int Cutoff { get; set; }
     public List<QualityProfileQualityItemResource> Items { get; set; } = [];
     public int MinFormatScore { get; set; }
@@ -44,7 +44,7 @@ public static class ProfileResourceMapper
         {
             Id = model.Id,
             Name = model.Name,
-            UpgradeAllowed = model.UpgradeAllowed,
+            UpgradeAllowed = model.UpgradeAllowed && !model.AllowMultiSeasonPacks,
             AllowMultiSeasonPacks = model.AllowMultiSeasonPacks,
             Cutoff = model.Cutoff,
             Items = model.Items.ConvertAll(ToResource),
@@ -86,8 +86,8 @@ public static class ProfileResourceMapper
         {
             Id = resource.Id,
             Name = resource.Name,
-            UpgradeAllowed = resource.UpgradeAllowed && !resource.AllowMultiSeasonPacks,
-            AllowMultiSeasonPacks = resource.AllowMultiSeasonPacks,
+            UpgradeAllowed = resource.UpgradeAllowed && resource.AllowMultiSeasonPacks != true,
+            AllowMultiSeasonPacks = resource.AllowMultiSeasonPacks == true,
             Cutoff = resource.Cutoff,
             Items = resource.Items.ConvertAll(ToModel),
             MinFormatScore = resource.MinFormatScore,

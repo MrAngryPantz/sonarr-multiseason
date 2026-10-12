@@ -67,6 +67,7 @@ public class QualityProfileController : RestController<QualityProfileResource>
     [Consumes("application/json")]
     public Results<Accepted<QualityProfileResource>, NotFound> Update([FromBody] QualityProfileResource resource)
     {
+        resource.AllowMultiSeasonPacks ??= _profileService.Get(resource.Id).AllowMultiSeasonPacks;
         var model = resource.ToModel();
 
         _profileService.Update(model);

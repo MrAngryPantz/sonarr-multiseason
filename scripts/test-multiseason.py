@@ -308,6 +308,21 @@ class Audit:
         profile = self.api('qualityprofile/1')
         assert profile['allowMultiSeasonPacks'] and not profile['upgradeAllowed']
         assert not self.api('qualityprofile/1', version=3)['upgradeAllowed']
+
+        for version in (3, 5):
+            legacy_profile = self.api('qualityprofile/1', version=version)
+            del legacy_profile['allowMultiSeasonPacks']
+            legacy_profile['upgradeAllowed'] = True
+            self.api('qualityprofile/1', legacy_profile, method='PUT', version=version)
+            profile = self.api('qualityprofile/1', version=version)
+            assert profile['allowMultiSeasonPacks'] and not profile['upgradeAllowed'], (
+                f'API v{version} cleared pack safety settings on a legacy profile update'
+            )
+            profile['allowMultiSeasonPacks'] = False
+            self.api('qualityprofile/1', profile, method='PUT', version=version)
+            assert not self.api('qualityprofile/1', version=version)['allowMultiSeasonPacks']
+            profile['allowMultiSeasonPacks'] = True
+            self.api('qualityprofile/1', profile, method='PUT', version=version)
         print('PASS: both APIs enforce upgrades off', flush=True)
         low_seeders = self.push('First indexer', seeders=2)
         assert any(r['reason'] == 'minimumSeeders' for r in low_seeders['decision']['rejections'])
