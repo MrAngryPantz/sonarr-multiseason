@@ -122,6 +122,44 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             requests[0].Url.Query.Should().Contain("t=search&").And.Contain("&q=Monkey%20Island");
         }
 
+        [TestCase("q", false, false)]
+        [TestCase("title", false, false)]
+        [TestCase("title", true, false)]
+        [TestCase("title", false, true)]
+        [TestCase("title", true, true)]
+        [TestCase("tvdbid", false, false)]
+        public void should_only_send_advertised_episode_filters(string parameter, bool season, bool episode)
+        {
+            var supported = new List<string> { parameter };
+            if (season)
+            {
+                supported.Add("season");
+            }
+
+            if (episode)
+            {
+                supported.Add("ep");
+            }
+
+            _capabilities.SupportedTvSearchParameters = supported.ToArray();
+            _capabilities.SupportedSearchParameters = null;
+            var requests = Subject.GetSearchRequests(_singleEpisodeSearchCriteria).GetAllTiers().Select(p => p.First()).ToList();
+            if (!season || !episode)
+            {
+                requests.Should().BeEmpty();
+                Subject.GetSearchRequests(PackCriteria()).GetAllTiers().Should().NotBeEmpty();
+                return;
+            }
+
+            requests.Should().NotBeEmpty();
+            foreach (var request in requests)
+            {
+                request.Url.Query.Should().Contain("&" + parameter + "=");
+                request.Url.Query.Contains("&season=").Should().Be(season);
+                request.Url.Query.Contains("&ep=").Should().Be(episode);
+            }
+        }
+
         [Test]
         public void should_search_text_for_unmapped_packs_even_when_id_search_returns_episodes()
         {

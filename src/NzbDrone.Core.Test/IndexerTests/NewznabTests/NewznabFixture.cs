@@ -97,6 +97,27 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             releaseInfo.TvRageId.Should().Be(0);
         }
 
+        [TestCase("q", true)]
+        [TestCase("title", true)]
+        [TestCase("tvdbid", true)]
+        [TestCase("imdbid", true)]
+        [TestCase("tmdbid", true)]
+        [TestCase("tvmazeid", true)]
+        [TestCase("rid", true)]
+        [TestCase("season", false)]
+        public void should_accept_series_searches_without_episode_filters(string parameter, bool accepted)
+        {
+            _caps.SupportedSearchParameters = null;
+            _caps.SupportedTvSearchParameters = new[] { parameter };
+            var feed = ReadAllText("Files/Indexers/Newznab/newznab_nzb_su.xml");
+            Mocker.GetMock<IHttpClient>()
+                .Setup(o => o.ExecuteAsync(It.Is<HttpRequest>(v => v.Method == HttpMethod.Get)))
+                .ReturnsAsync((HttpRequest r, CancellationToken _) => new HttpResponse(r, new HttpHeader(), feed));
+
+            var result = new NzbDrone.Core.Validation.NzbDroneValidationResult(Subject.Test());
+            result.IsValid.Should().Be(accepted);
+        }
+
         [Test]
         public void should_use_best_pagesize_reported_by_caps()
         {

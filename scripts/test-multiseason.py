@@ -141,7 +141,7 @@ class Audit:
                             '<searching>'
                             + ('<search available="yes" supportedParams="q"/>' if '/2/' not in path else '')
                             + ('<tv-search available="yes" supportedParams="q,tvdbid,season,ep"/>' if '/1/' in path
-                               else '<tv-search available="yes" supportedParams="title,season,ep"/>' if '/2/' in path else '')
+                               else '<tv-search available="yes" supportedParams="title"/>' if '/2/' in path else '')
                             + '</searching>'
                             '<categories>'
                             '<category id="5000" name="TV"/>'
@@ -296,6 +296,9 @@ class Audit:
         self.seed()
         self.media()
         self.start()
+        for indexer in self.api('indexer'):
+            self.api('indexer/test', indexer)
+        print('PASS: indexer validation accepts ID, title-only and generic search connections', flush=True)
         self.command('RescanSeries', seriesId=1)
         assert sum(e['hasFile'] for e in self.episodes()) == 1, 'Existing episode was not indexed'
         original_id = self.episodes()[0]['episodeFileId']
@@ -321,6 +324,7 @@ class Audit:
         self.command('RssSync' if self.args.grab_method == 'rss' else 'SeasonSearch',
                      **({} if self.args.grab_method == 'rss' else {'seriesId': 1, 'seasonNumber': 2}))
         assert len(self.grabs) == 1, 'Missing episodes did not trigger a pack grab'
+        self.rss_sources.clear()
         self.command('RssSync')
         assert len(self.rss_sources) == 3, f'RSS did not query all simulated indexers: {sorted(self.rss_sources)}'
         assert len(self.grabs) == 1, 'RSS duplicated the selected pack'

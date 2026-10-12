@@ -22,6 +22,8 @@ With the option enabled, episode and season searches also look for the series wi
 
 Identical pack queries share their results for one minute, including while a query is still running. This avoids repeating a series-wide search for every season. Indexer settings changes clear the cache. Existing pagination, request pacing and failure backoff still apply; an extra pack search cannot discard results from the ordinary search.
 
+Newznab and Torznab connections can be added when they support a series title or ID search without season or episode filters. These connections can discover packs while ordinary searches keep requiring their appropriate filters. Pack results still pass the normal episode matching checks. [Prowlarr Packs](https://github.com/MrAngryPantz/prowlarr-packs) preserves these capabilities and forwards TV `title` searches correctly.
+
 This covers Sonarr's built-in connection types, but it cannot guarantee that every indexer will return every pack. An indexer may omit old releases, cap its results, supply incomplete metadata or offer no search endpoint. Sonarr still needs a title with a clear season range. These limits cannot be fixed by accepting a release blindly.
 
 ## Status and limits
