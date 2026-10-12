@@ -330,6 +330,41 @@ class Audit:
             'Legacy quality-size clients require numeric minimum sizes'
         )
         print('PASS: API v3 quality definitions remain compatible with legacy size clients', flush=True)
+
+        original_profile = self.api('qualityprofile/1')
+        size_profile = json.loads(json.dumps(original_profile))
+        def quality_items(items):
+            for item in items:
+                if item.get('quality'):
+                    yield item
+                yield from quality_items(item.get('items', []))
+        size_item = next(quality_items(size_profile['items']))
+        quality_id = size_item['quality']['id']
+        size_item.update(minSize=1.25, maxSize=50, preferredSize=25)
+        self.api('qualityprofile/1', size_profile, method='PUT')
+        legacy_profile = self.api('qualityprofile/1', version=3)
+        for item in quality_items(legacy_profile['items']):
+            for field in ('minSize', 'maxSize', 'preferredSize'):
+                item.pop(field, None)
+        legacy_profile.pop('allowMultiSeasonPacks', None)
+        legacy_profile['items'].reverse()
+        self.api('qualityprofile/1', legacy_profile, method='PUT', version=3)
+        saved = self.api('qualityprofile/1')
+        saved_item = next(i for i in quality_items(saved['items']) if i['quality']['id'] == quality_id)
+        assert (saved_item['minSize'], saved_item['maxSize'], saved_item['preferredSize']) == (1.25, 50, 25), (
+            'A typed legacy profile client cleared the per-profile size limits'
+        )
+        explicit = self.api('qualityprofile/1', version=3)
+        explicit_item = next(i for i in quality_items(explicit['items']) if i['quality']['id'] == quality_id)
+        explicit_item.update(minSize=None, maxSize=None, preferredSize=None)
+        self.api('qualityprofile/1', explicit, method='PUT', version=3)
+        saved = self.api('qualityprofile/1')
+        saved_item = next(i for i in quality_items(saved['items']) if i['quality']['id'] == quality_id)
+        assert all(saved_item.get(f) is None for f in ('minSize', 'maxSize', 'preferredSize')), (
+            'Explicitly clearing a size limit must still work'
+        )
+        self.api('qualityprofile/1', original_profile, method='PUT')
+        print('PASS: legacy profile updates preserve sizes and explicit clearing still works', flush=True)
         low_seeders = self.push('First indexer', seeders=2)
         assert any(r['reason'] == 'minimumSeeders' for r in low_seeders['decision']['rejections'])
         assert not self.grabs, 'Release below the minimum seeders was grabbed'

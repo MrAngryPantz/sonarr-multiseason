@@ -65,7 +65,9 @@ namespace Sonarr.Api.V3.Profiles.Quality
         [Consumes("application/json")]
         public ActionResult<QualityProfileResource> Update([FromBody] QualityProfileResource resource)
         {
-            resource.AllowMultiSeasonPacks ??= _profileService.Get(resource.Id).AllowMultiSeasonPacks;
+            var existing = _profileService.Get(resource.Id);
+            resource.AllowMultiSeasonPacks ??= existing.AllowMultiSeasonPacks;
+            resource.PreserveUnspecifiedSizeLimits(existing);
             var model = resource.ToModel();
 
             _profileService.Update(model);

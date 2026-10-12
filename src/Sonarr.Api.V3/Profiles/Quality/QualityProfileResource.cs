@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Profiles;
 using NzbDrone.Core.Profiles.Qualities;
@@ -22,13 +23,52 @@ namespace Sonarr.Api.V3.Profiles.Quality
 
     public class QualityProfileQualityItemResource : RestResource
     {
+        private double? _minSize;
+        private double? _maxSize;
+        private double? _preferredSize;
+
         public string Name { get; set; }
         public NzbDrone.Core.Qualities.Quality Quality { get; set; }
         public List<QualityProfileQualityItemResource> Items { get; set; }
         public bool Allowed { get; set; }
-        public double? MinSize { get; set; }
-        public double? MaxSize { get; set; }
-        public double? PreferredSize { get; set; }
+        public double? MinSize
+        {
+            get => _minSize;
+            set
+            {
+                _minSize = value;
+                MinSizeSpecified = true;
+            }
+        }
+
+        public double? MaxSize
+        {
+            get => _maxSize;
+            set
+            {
+                _maxSize = value;
+                MaxSizeSpecified = true;
+            }
+        }
+
+        public double? PreferredSize
+        {
+            get => _preferredSize;
+            set
+            {
+                _preferredSize = value;
+                PreferredSizeSpecified = true;
+            }
+        }
+
+        [JsonIgnore]
+        public bool MinSizeSpecified { get; private set; }
+
+        [JsonIgnore]
+        public bool MaxSizeSpecified { get; private set; }
+
+        [JsonIgnore]
+        public bool PreferredSizeSpecified { get; private set; }
 
         public QualityProfileQualityItemResource()
         {
@@ -97,6 +137,12 @@ namespace Sonarr.Api.V3.Profiles.Quality
             };
         }
 
+        public static void PreserveUnspecifiedSizeLimits(this QualityProfileResource resource, QualityProfile existing)
+        {
+            var previous = existing.Items.SelectMany(FlattenItems).ToList();
+            PreserveSizeLimits(resource.Items, previous);
+        }
+
         public static QualityProfile ToModel(this QualityProfileResource resource)
         {
             if (resource == null)
@@ -151,6 +197,47 @@ namespace Sonarr.Api.V3.Profiles.Quality
         public static List<QualityProfileResource> ToResource(this IEnumerable<QualityProfile> models)
         {
             return models.Select(ToResource).ToList();
+        }
+
+        private static IEnumerable<QualityProfileQualityItem> FlattenItems(QualityProfileQualityItem item)
+        {
+            yield return item;
+            foreach (var child in item.Items.SelectMany(FlattenItems))
+            {
+                yield return child;
+            }
+        }
+
+        private static void PreserveSizeLimits(
+            IEnumerable<QualityProfileQualityItemResource> items,
+            List<QualityProfileQualityItem> previous)
+        {
+            foreach (var item in items)
+            {
+                var existing = previous.FirstOrDefault(p => item.Quality != null
+                    ? p.Quality?.Id == item.Quality.Id
+                    : p.Quality == null && p.Id == item.Id);
+
+                if (existing != null)
+                {
+                    if (!item.MinSizeSpecified)
+                    {
+                        item.MinSize = existing.MinSize;
+                    }
+
+                    if (!item.MaxSizeSpecified)
+                    {
+                        item.MaxSize = existing.MaxSize;
+                    }
+
+                    if (!item.PreferredSizeSpecified)
+                    {
+                        item.PreferredSize = existing.PreferredSize;
+                    }
+                }
+
+                PreserveSizeLimits(item.Items, previous);
+            }
         }
     }
 }
