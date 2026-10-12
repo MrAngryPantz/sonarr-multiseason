@@ -32,6 +32,13 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         {
             var qualityProfile = subject.Series.QualityProfile.Value;
 
+            if (qualityProfile.AllowMultiSeasonPacks && !qualityProfile.UpgradeAllowed && subject.ParsedEpisodeInfo.FullSeason)
+            {
+                return subject.Episodes.Any(e => e.Monitored && e.EpisodeFileId == 0)
+                    ? DownloadSpecDecision.Accept()
+                    : DownloadSpecDecision.Reject(DownloadRejectionReason.DiskUpgradesNotAllowed, "Multi-season packs only fill missing episodes");
+            }
+
             if (subject.ParsedEpisodeInfo.FullSeason)
             {
                 var totalEpisodesInPack = subject.Episodes.Count;

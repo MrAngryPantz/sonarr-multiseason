@@ -1,85 +1,47 @@
-# <img width="24px" src="./Logo/256.png" alt="Sonarr"></img> Sonarr
+# Sonarr Multi-Season
 
-[![Translated](https://translate.servarr.com/widget/servarr/sonarr/svg-badge.svg)](https://translate.servarr.com/engage/servarr/)
-[![Backers on Open Collective](https://opencollective.com/Sonarr/backers/badge.svg)](#backers)
-[![Sponsors on Open Collective](https://opencollective.com/Sonarr/sponsors/badge.svg)](#sponsors)
-[![Mega Sponsors on Open Collective](https://opencollective.com/Sonarr/megasponsors/badge.svg)](#mega-sponsors)
+This fork lets Sonarr automatically download packs that contain several seasons. It is meant for filling gaps in a library while keeping the episodes you already have.
 
-Sonarr is a PVR for Usenet and BitTorrent users. It can monitor multiple RSS feeds for new episodes of your favorite shows and will grab, sort and rename them. It can also be configured to automatically upgrade the quality of files already downloaded when a better quality format becomes available.
+In **Settings → Profiles**, edit a quality profile and enable **Allow Multi-Season Packs**. This turns **Upgrades Allowed** off and prevents it from being turned back on while the option is enabled. Turning multi-season packs off leaves upgrades off.
 
-## Getting Started
+A pack can be selected from RSS or automatic search when all its matched episodes are monitored and at least one is missing. The usual quality, custom format, size, seeder and other release checks still apply. Existing episodes are kept, including when a pack contains a better quality, proper or repack. A finished download is only marked complete once every expected episode has been imported or already exists in the library.
 
-- [Download/Installation](https://sonarr.tv/#downloads-v3)
-- [FAQ](https://wiki.servarr.com/sonarr/faq)
-- [Wiki](https://wiki.servarr.com/Sonarr)
-- [API Documentation](https://sonarr.tv/docs/api)
-- [Donate](https://sonarr.tv/donate)
+The option is off by default, so existing profiles keep their current behaviour until you enable it. It does not change your indexer's minimum seeder setting.
 
-## Support
+## Status and limits
 
-Note: GitHub Issues are for Bugs and Feature Requests Only
+This is experimental work based on Sonarr's v5 development branch and [IonBazan's multi-season import work](https://github.com/Sonarr/Sonarr/pull/9075). It is not an official Sonarr release. Use a separate test instance and a separate application data directory; do not point it at a working installation's database.
 
-- [Forums](https://forums.sonarr.tv/)
-- [Discord](https://discord.gg/M6BvZn5)
-- [GitHub - Bugs and Feature Requests Only](https://github.com/Sonarr/Sonarr/issues)
-- [IRC](https://web.libera.chat/?channels=#sonarr)
-- [Reddit](https://www.reddit.com/r/sonarr)
-- [Wiki](https://wiki.servarr.com/sonarr)
+The indexer must return a pack whose season range Sonarr can parse. Packs containing unmonitored episodes are rejected. If one video contains both an existing episode and a missing episode, it is left for manual review because importing it would replace an existing file. Packs download in full; this feature does not change torrent file priorities.
 
-## Features
+The first version supports filling missing episodes. Upgrading multi-season packs is deliberately disabled.
 
-### Current Features
+## Development
 
-- Support for major platforms: Windows, Linux, macOS, Raspberry Pi, etc.
-- Automatically detects new episodes
-- Can scan your existing library and download any missing episodes
-- Can watch for better quality of the episodes you already have and do an automatic upgrade. _eg. from DVD to Blu-Ray_
-- Automatic failed download handling will try another release if one fails
-- Manual search so you can pick any release or to see why a release was not downloaded automatically
-- Fully configurable episode renaming
-- Full integration with SABnzbd and NZBGet
-- Full integration with Kodi, Plex (notification, library update, metadata)
-- Full support for specials and multi-episode releases
-- And a beautiful UI
+Use the .NET SDK version in `global.json`, Node.js 24 and Yarn 1.22.22.
 
-## Contributing
+```sh
+yarn install --frozen-lockfile
+yarn typecheck
+yarn build
+dotnet build src/Sonarr.sln
+```
 
-### Development
+Run the focused backend tests from the repository root:
 
-This project exists thanks to all the people who contribute. [Contribute](CONTRIBUTING.md).
+```sh
+dotnet test src/NzbDrone.Core.Test/Sonarr.Core.Test.csproj \
+  -p:SolutionDir="$PWD/src/" \
+  --filter 'FullyQualifiedName~MultiSeason|FullyQualifiedName~allow_multi_season_packsFixture|FullyQualifiedName~QualityProfileServiceFixture|FullyQualifiedName~UpgradeSpecificationFixture|FullyQualifiedName~CompletedDownloadServiceTests|FullyQualifiedName~UpgradeAllowedSpecificationFixture|FullyQualifiedName~SingleEpisodeSearchMatchSpecification'
+dotnet test src/NzbDrone.Api.Test/Sonarr.Api.Test.csproj \
+  -p:SolutionDir="$PWD/src/" \
+  --filter 'FullyQualifiedName~MultiSeasonProfileFixture'
+```
 
-<a href="https://github.com/Sonarr/Sonarr/graphs/contributors"><img src="https://opencollective.com/Sonarr/contributors.svg?width=890&button=false" /></a>
+The tests cover opting in, forcing upgrades off, filling gaps, preserving files, API settings and incomplete downloads. Test a fresh database before trying a copy of an existing library.
 
-### Supporters
+## Credits and licence
 
-This project would not be possible without the support of our users and software providers.
-[**Become a sponsor or backer**](https://opencollective.com/sonarr) to help us out!
+Sonarr is developed by [the Sonarr project](https://github.com/Sonarr/Sonarr). The season parsing, display and import groundwork here comes from IonBazan's upstream contributions. This fork adds automatic selection and the rule that existing episodes are kept.
 
-#### Mega Sponsors
-
-[![Sponsors](https://opencollective.com/sonarr/tiers/mega-sponsor.svg?width=890)](https://opencollective.com/sonarr/contribute/mega-sponsor-21443/checkout)
-
-#### Sponsors
-
-[![Flexible Sponsors](https://opencollective.com/sonarr/sponsors.svg?width=890)](https://opencollective.com/sonarr/contribute/sponsor-21457/checkout)
-
-#### Backers
-
-[![Backers](https://opencollective.com/sonarr/backers.svg?width=890)](https://opencollective.com/sonarr/contribute/backer-21442/checkout)
-
-#### JetBrains
-
-Thank you to [<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.png" alt="JetBrains" width="96">](http://www.jetbrains.com/) for providing us with free licenses to their great tools
-
-[<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/TeamCity.png" alt="TeamCity" width="64">](http://www.jetbrains.com/teamcity/)
-
-[<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/ReSharper.png" alt="ReSharper" width="64">](http://www.jetbrains.com/resharper/)
-
-[<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/dotTrace.png" alt="dotTrace" width="64">](http://www.jetbrains.com/dottrace/)
-
-[<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/Rider.png" alt="Rider" width="64">](http://www.jetbrains.com/rider/)
-
-### Licenses
-
-- [GNU GPL v3](http://www.gnu.org/licenses/gpl.html)
-- Copyright 2010-2025
+The source remains available under the [GNU General Public License v3](LICENSE.md). Upstream history and copyright notices are retained.

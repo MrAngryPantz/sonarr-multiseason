@@ -27,6 +27,12 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         {
             var qualityProfile = subject.Series.QualityProfile.Value;
 
+            if (qualityProfile.AllowMultiSeasonPacks && !qualityProfile.UpgradeAllowed && subject.ParsedEpisodeInfo.FullSeason)
+            {
+                // The import guard preserves existing files while the pack fills gaps.
+                return DownloadSpecDecision.Accept();
+            }
+
             foreach (var file in subject.Episodes.Where(c => c.EpisodeFileId != 0).Select(c => c.EpisodeFile.Value))
             {
                 if (file == null)

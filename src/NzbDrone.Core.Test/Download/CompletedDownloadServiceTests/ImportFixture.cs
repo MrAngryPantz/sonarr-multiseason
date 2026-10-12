@@ -13,6 +13,7 @@ using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
 using NzbDrone.Test.Common;
@@ -473,6 +474,74 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                   .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Once());
 
             _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+        }
+
+        [Test]
+        public void should_not_count_duplicate_imports_as_missing_seasons()
+        {
+            var episodes = GivenMultiSeasonDownload();
+            GivenImportedEpisodes(Enumerable.Repeat(episodes[0], episodes.Count));
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+            ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [TestCase(true, true)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(false, false)]
+        public void should_complete_gap_filling_pack_only_when_preserved_file_still_exists(bool fileExists, bool multiSeason)
+        {
+            var episodes = GivenMultiSeasonDownload();
+            if (!multiSeason)
+            {
+                episodes = episodes.Where(e => e.SeasonNumber == 1).ToList();
+                _trackedDownload.RemoteEpisode.Episodes = episodes;
+                _trackedDownload.RemoteEpisode.ParsedEpisodeInfo.SeasonNumbers = new List<int> { 1 };
+            }
+
+            _trackedDownload.RemoteEpisode.Series.QualityProfile = new QualityProfile { AllowMultiSeasonPacks = true };
+            _trackedDownload.RemoteEpisode.Series.Path = @"C:\TV\Drone".AsOsAgnostic();
+            episodes[0].EpisodeFileId = 42;
+            GivenImportedEpisodes(episodes.Skip(1));
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodes(It.IsAny<IEnumerable<int>>())).Returns(episodes);
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFiles(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<EpisodeFile> { new EpisodeFile { Id = 42, RelativePath = "S01E01.mkv" } });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(It.IsAny<string>())).Returns(fileExists);
+
+            Subject.Import(_trackedDownload);
+
+            if (fileExists)
+            {
+                AssertImported();
+            }
+            else
+            {
+                AssertNotImported();
+                ExceptionVerification.ExpectedWarns(1);
+            }
+        }
+
+        [Test]
+        public void should_not_complete_gap_filling_pack_when_a_missing_episode_failed_import()
+        {
+            var episodes = GivenMultiSeasonDownload();
+            _trackedDownload.RemoteEpisode.Series.QualityProfile = new QualityProfile { AllowMultiSeasonPacks = true };
+            _trackedDownload.RemoteEpisode.Series.Path = @"C:\TV\Drone".AsOsAgnostic();
+            episodes[0].EpisodeFileId = 42;
+            GivenImportedEpisodes(episodes.Skip(2));
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodes(It.IsAny<IEnumerable<int>>())).Returns(episodes);
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFiles(It.IsAny<IEnumerable<int>>()))
+                .Returns(new List<EpisodeFile> { new EpisodeFile { Id = 42, RelativePath = "S01E01.mkv" } });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(It.IsAny<string>())).Returns(true);
+            Mocker.GetMock<ITrackedDownloadAlreadyImported>().Setup(s => s.IsImported(It.IsAny<TrackedDownload>(), It.IsAny<List<EpisodeHistory>>())).Returns(true);
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

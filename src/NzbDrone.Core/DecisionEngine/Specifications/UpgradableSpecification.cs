@@ -30,6 +30,11 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public UpgradeableRejectReason IsUpgradable(QualityProfile qualityProfile, QualityModel currentQuality, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats)
         {
+            if (qualityProfile.AllowMultiSeasonPacks)
+            {
+                return UpgradeableRejectReason.UpgradesNotAllowed;
+            }
+
             var qualityComparer = new QualityModelComparer(qualityProfile);
             var qualityCompare = qualityComparer.Compare(newQuality?.Quality, currentQuality.Quality);
             var downloadPropersAndRepacks = _configService.DownloadPropersAndRepacks;
@@ -183,6 +188,11 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
 
         public bool IsUpgradeAllowed(QualityProfile qualityProfile, QualityModel currentQuality, List<CustomFormat> currentCustomFormats, QualityModel newQuality, List<CustomFormat> newCustomFormats)
         {
+            if (qualityProfile.AllowMultiSeasonPacks)
+            {
+                return false;
+            }
+
             var isQualityUpgrade = new QualityModelComparer(qualityProfile).Compare(newQuality, currentQuality) > 0;
             var isCustomFormatUpgrade = qualityProfile.CalculateCustomFormatScore(newCustomFormats) > qualityProfile.CalculateCustomFormatScore(currentCustomFormats);
 

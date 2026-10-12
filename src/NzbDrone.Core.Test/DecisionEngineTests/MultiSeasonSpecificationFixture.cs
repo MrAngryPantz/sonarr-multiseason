@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
@@ -7,6 +7,7 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.DecisionEngine.Specifications;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
 
@@ -20,7 +21,7 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         [SetUp]
         public void Setup()
         {
-            var series = Builder<Series>.CreateNew().With(s => s.Id = 1234).Build();
+            var series = new Series { Id = 1234, Monitored = true, QualityProfile = new QualityProfile() };
             _remoteEpisode = new RemoteEpisode
             {
                 ParsedEpisodeInfo = new ParsedEpisodeInfo
@@ -31,6 +32,8 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
                 Episodes = Builder<Episode>.CreateListOfSize(3)
                                            .All()
                                            .With(s => s.SeriesId = series.Id)
+                                           .With(s => s.Monitored = true)
+                                           .With(s => s.EpisodeFileId = 0)
                                            .BuildList(),
                 Series = series,
                 Release = new ReleaseInfo
@@ -63,6 +66,61 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
             var information = new ReleaseDecisionInformation(false, new SeasonSearchCriteria { SeasonNumber = 3, InteractiveSearch = true });
 
             Subject.IsSatisfiedBy(_remoteEpisode, information).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_accept_enabled_pack_with_missing_episodes()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.Episodes[0].EpisodeFileId = 42;
+
+            Subject.IsSatisfiedBy(_remoteEpisode, new()).Accepted.Should().BeTrue();
+        }
+
+        [Test]
+        public void should_reject_completed_pack_even_if_better_quality_is_available()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.Episodes.ForEach(e => e.EpisodeFileId = e.Id);
+
+            Subject.IsSatisfiedBy(_remoteEpisode, new()).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_reject_inconsistent_upgrade_setting()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.Series.QualityProfile.Value.UpgradeAllowed = true;
+
+            Subject.IsSatisfiedBy(_remoteEpisode, new()).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_reject_unmonitored_episode_even_during_search()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.Episodes[0].Monitored = false;
+            var information = new ReleaseDecisionInformation(false, new SeasonSearchCriteria { MonitoredEpisodesOnly = false });
+
+            Subject.IsSatisfiedBy(_remoteEpisode, information).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_reject_unmonitored_series()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.Series.Monitored = false;
+
+            Subject.IsSatisfiedBy(_remoteEpisode, new()).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_reject_pack_without_mapped_episodes()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.Episodes.Clear();
+
+            Subject.IsSatisfiedBy(_remoteEpisode, new()).Accepted.Should().BeFalse();
         }
     }
 }

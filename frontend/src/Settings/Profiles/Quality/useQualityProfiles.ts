@@ -37,6 +37,7 @@ export type QualityProfileItems = (
 export interface QualityProfileModel extends ModelBase {
   name: string;
   upgradeAllowed: boolean;
+  allowMultiSeasonPacks: boolean;
   cutoff: number;
   items: QualityProfileItems;
   minFormatScore: number;

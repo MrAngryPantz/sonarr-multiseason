@@ -1,4 +1,5 @@
-﻿using NLog;
+using System.Linq;
+using NLog;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications
@@ -19,8 +20,23 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
         {
             if (subject.ParsedEpisodeInfo.IsMultiSeason)
             {
-                _logger.Debug("Multi-season release {0} rejected. Not grabbed automatically", subject.Release.Title);
-                return DownloadSpecDecision.Reject(DownloadRejectionReason.MultiSeason, "Multi-season release, not grabbed automatically. Grab it from interactive search to import all seasons");
+                var profile = subject.Series.QualityProfile?.Value;
+
+                if (profile?.AllowMultiSeasonPacks != true || profile.UpgradeAllowed)
+                {
+                    _logger.Debug("Automatic multi-season packs are disabled for this quality profile");
+                    return DownloadSpecDecision.Reject(DownloadRejectionReason.MultiSeason, "Enable multi-season packs in the quality profile with upgrades disabled");
+                }
+
+                if (!subject.Series.Monitored || subject.Episodes.Any(e => !e.Monitored))
+                {
+                    return DownloadSpecDecision.Reject(DownloadRejectionReason.EpisodeNotMonitored, "All episodes in a multi-season pack must be monitored");
+                }
+
+                if (!subject.Episodes.Any(e => e.EpisodeFileId == 0))
+                {
+                    return DownloadSpecDecision.Reject(DownloadRejectionReason.DiskUpgradesNotAllowed, "Multi-season packs only fill missing episodes; existing files are kept");
+                }
             }
 
             return DownloadSpecDecision.Accept();

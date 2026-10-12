@@ -56,6 +56,11 @@ namespace NzbDrone.Core.Profiles.Qualities
 
         public QualityProfile Add(QualityProfile profile)
         {
+            if (profile.AllowMultiSeasonPacks)
+            {
+                profile.UpgradeAllowed = false;
+            }
+
             var saved = _qualityProfileRepository.Insert(profile);
             _rankService.UpdateRanksForProfile(saved);
             return saved;
@@ -63,6 +68,11 @@ namespace NzbDrone.Core.Profiles.Qualities
 
         public void Update(QualityProfile profile)
         {
+            if (profile.AllowMultiSeasonPacks)
+            {
+                profile.UpgradeAllowed = false;
+            }
+
             _qualityProfileRepository.Update(profile);
             _rankService.UpdateRanksForProfile(profile);
             _eventAggregator.PublishEvent(new QualityProfileUpdatedEvent(profile.Id));

@@ -609,5 +609,26 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport.Specifications
             result.Accepted.Should().BeFalse();
             result.Reason.Should().Be(ImportRejectionReason.NotCustomFormatUpgradeAfterRename);
         }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void should_preserve_existing_files_when_multi_season_packs_are_enabled(bool upgradeAllowed)
+        {
+            _series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _series.QualityProfile.Value.UpgradeAllowed = upgradeAllowed;
+            _localEpisode.Episodes = new List<Episode> { new Episode { EpisodeFileId = 42 }, new Episode() };
+            _localEpisode.Quality = new QualityModel(Quality.Bluray1080p, new Revision(version: 3));
+
+            Subject.IsSatisfiedBy(_localEpisode, null).Accepted.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_import_missing_episode_when_multi_season_packs_are_enabled()
+        {
+            _series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _localEpisode.Episodes = new List<Episode> { new Episode() };
+
+            Subject.IsSatisfiedBy(_localEpisode, null).Accepted.Should().BeTrue();
+        }
     }
 }

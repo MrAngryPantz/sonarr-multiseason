@@ -75,6 +75,8 @@
   "AirsTomorrowOn": "Tomorrow at {time} on {networkLabel}",
   "All": "All",
   "AllFiles": "All Files",
+  "AllowMultiSeasonPacks": "Allow Multi-Season Packs",
+  "AllowMultiSeasonPacksHelpText": "Automatically download packs covering several seasons to fill missing episodes. All episodes in the pack must be monitored. Enabling this turns upgrades off and keeps existing files, including when a proper or repack is available.",
   "AllowSeasonPackWithoutAllEpisodesAired": "Allow Season Pack Before All Episodes Have Aired",
   "AllowSeasonPackWithoutAllEpisodesAiredHelpText": "Allow season pack releases matching this profile to be grabbed even if not all episodes in the season have aired yet, or if an episode has no air date at all. Note: if another Release Profile also applies to this series with this option disabled, the more restrictive setting wins and the season pack will still be blocked.",
   "AllowSeasonPackWithoutAllEpisodesAiredHelpTextWarning": "Only enable this if you trust your indexers to not send fake or incomplete season packs",

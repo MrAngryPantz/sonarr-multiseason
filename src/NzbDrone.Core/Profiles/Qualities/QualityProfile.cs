@@ -15,6 +15,7 @@ namespace NzbDrone.Core.Profiles.Qualities
 
         public string Name { get; set; }
         public bool UpgradeAllowed { get; set; }
+        public bool AllowMultiSeasonPacks { get; set; }
         public int Cutoff { get; set; }
         public int MinFormatScore { get; set; }
         public int CutoffFormatScore { get; set; }

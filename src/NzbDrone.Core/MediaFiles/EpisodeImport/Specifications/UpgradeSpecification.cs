@@ -28,6 +28,12 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Specifications
         {
             var downloadPropersAndRepacks = _configService.DownloadPropersAndRepacks;
             var qualityProfile = localEpisode.Series.QualityProfile.Value;
+
+            if (qualityProfile.AllowMultiSeasonPacks && !localEpisode.ExistingFile && localEpisode.Episodes.Any(e => e.EpisodeFileId > 0))
+            {
+                return ImportSpecDecision.Reject(ImportRejectionReason.NotQualityUpgrade, "Existing episode files are kept while multi-season packs are enabled");
+            }
+
             var qualityComparer = new QualityModelComparer(qualityProfile);
 
             foreach (var episode in localEpisode.Episodes.Where(e => e.EpisodeFileId > 0))

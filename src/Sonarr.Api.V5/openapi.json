@@ -11974,6 +11974,9 @@
           "upgradeAllowed": {
             "type": "boolean"
           },
+          "allowMultiSeasonPacks": {
+            "type": "boolean"
+          },
           "cutoff": {
             "type": "integer",
             "format": "int32"

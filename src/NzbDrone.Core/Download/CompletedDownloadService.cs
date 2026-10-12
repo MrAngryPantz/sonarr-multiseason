@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
@@ -36,6 +37,7 @@ namespace NzbDrone.Core.Download
         private readonly IEpisodeService _episodeService;
         private readonly IMediaFileService _mediaFileService;
         private readonly IRejectedImportService _rejectedImportService;
+        private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
 
         public CompletedDownloadService(IEventAggregator eventAggregator,
@@ -48,6 +50,7 @@ namespace NzbDrone.Core.Download
                                         IEpisodeService episodeService,
                                         IMediaFileService mediaFileService,
                                         IRejectedImportService rejectedImportService,
+                                        IDiskProvider diskProvider,
                                         Logger logger)
         {
             _eventAggregator = eventAggregator;
@@ -60,6 +63,7 @@ namespace NzbDrone.Core.Download
             _episodeService = episodeService;
             _mediaFileService = mediaFileService;
             _rejectedImportService = rejectedImportService;
+            _diskProvider = diskProvider;
             _logger = logger;
         }
 
@@ -208,6 +212,42 @@ namespace NzbDrone.Core.Download
                                                    .SelectMany(c => c.ImportDecision.LocalEpisode.Episodes)
                                                    .Count() >= Math.Max(1,
                                           trackedDownload.RemoteEpisode.Episodes.Count);
+
+            var remoteEpisode = trackedDownload.RemoteEpisode;
+            var isMultiSeason = remoteEpisode.ParsedEpisodeInfo?.IsMultiSeason == true;
+            var missingEpisodesOnly = remoteEpisode.ParsedEpisodeInfo?.FullSeason == true && remoteEpisode.Series.QualityProfile?.Value?.AllowMultiSeasonPacks == true;
+
+            if (isMultiSeason || missingEpisodesOnly)
+            {
+                var expectedIds = remoteEpisode.Episodes.Select(e => e.Id).ToHashSet();
+                var importedIds = importResults.Where(c => c.Result == ImportResultType.Imported)
+                    .SelectMany(c => c.ImportDecision.LocalEpisode.Episodes)
+                    .Select(e => e.Id)
+                    .ToHashSet();
+
+                // Count each expected episode once. Duplicate or unrelated files cannot
+                // make an incomplete pack safe to remove from the download client.
+                allEpisodesImported = expectedIds.Count > 0 && expectedIds.IsSubsetOf(importedIds);
+
+                if (missingEpisodesOnly && !allEpisodesImported && expectedIds.Count > 0)
+                {
+                    var episodes = _episodeService.GetEpisodes(expectedIds);
+                    var files = _mediaFileService.GetFiles(episodes.Where(e => e.EpisodeFileId > 0).Select(e => e.EpisodeFileId).Distinct());
+                    var existingFileIds = files.Where(f => f.RelativePath.IsNotNullOrWhiteSpace() &&
+                            _diskProvider.FileExists(Path.Combine(remoteEpisode.Series.Path, f.RelativePath)))
+                        .Select(f => f.Id)
+                        .ToHashSet();
+
+                    importedIds.UnionWith(episodes.Where(e => existingFileIds.Contains(e.EpisodeFileId)).Select(e => e.Id));
+                    allEpisodesImported = expectedIds.IsSubsetOf(importedIds);
+                }
+
+                if (missingEpisodesOnly && !allEpisodesImported)
+                {
+                    _logger.Debug("Multi-season pack still has missing episodes: {0}", trackedDownload.DownloadItem.Title);
+                    return false;
+                }
+            }
 
             var historyItems = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
                 .OrderByDescending(h => h.Date)

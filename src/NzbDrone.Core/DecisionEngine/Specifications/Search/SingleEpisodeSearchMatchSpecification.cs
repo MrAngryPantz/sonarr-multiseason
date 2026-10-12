@@ -58,6 +58,11 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.Search
 
             if (!remoteEpisode.ParsedEpisodeInfo.EpisodeNumbers.Any())
             {
+                if (CanFillMissingSearchedEpisode(remoteEpisode, singleEpisodeSpec))
+                {
+                    return DownloadSpecDecision.Accept();
+                }
+
                 _logger.Debug("Full season result during single episode search, skipping.");
                 return DownloadSpecDecision.Reject(DownloadRejectionReason.FullSeason, "Full season pack");
             }
@@ -75,11 +80,24 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.Search
         {
             if (remoteEpisode.ParsedEpisodeInfo.FullSeason && !animeEpisodeSpec.IsSeasonSearch)
             {
+                if (CanFillMissingSearchedEpisode(remoteEpisode, animeEpisodeSpec))
+                {
+                    return DownloadSpecDecision.Accept();
+                }
+
                 _logger.Debug("Full season result during single episode search, skipping.");
                 return DownloadSpecDecision.Reject(DownloadRejectionReason.FullSeason, "Full season pack");
             }
 
             return DownloadSpecDecision.Accept();
+        }
+
+        private static bool CanFillMissingSearchedEpisode(RemoteEpisode remoteEpisode, SearchCriteriaBase criteria)
+        {
+            var profile = remoteEpisode.Series?.QualityProfile?.Value;
+            return remoteEpisode.ParsedEpisodeInfo.IsMultiSeason &&
+                   profile?.AllowMultiSeasonPacks == true && !profile.UpgradeAllowed &&
+                   remoteEpisode.Episodes.Any(e => e.Monitored && e.EpisodeFileId == 0 && criteria.Episodes.Any(s => s.Id == e.Id));
         }
     }
 }

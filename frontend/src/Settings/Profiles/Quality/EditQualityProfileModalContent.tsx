@@ -85,6 +85,7 @@ function EditQualityProfileModalContent({
   const {
     name,
     upgradeAllowed,
+    allowMultiSeasonPacks,
     cutoff,
     minFormatScore,
     minUpgradeFormatScore,
@@ -124,6 +125,10 @@ function EditQualityProfileModalContent({
     ({ name, value }: InputChanged) => {
       // @ts-expect-error - change is not yet typed
       updateValue(name, value);
+
+      if (name === 'allowMultiSeasonPacks' && value) {
+        updateValue('upgradeAllowed', false);
+      }
     },
     [updateValue]
   );
@@ -377,6 +382,21 @@ function EditQualityProfileModalContent({
                 </FormRow>
 
                 <FormRow>
+                  <FormLabel>{translate('AllowMultiSeasonPacks')}</FormLabel>
+
+                  <FormInputHelpText
+                    text={translate('AllowMultiSeasonPacksHelpText')}
+                  />
+
+                  <FormInput
+                    type={inputTypes.CHECK}
+                    name="allowMultiSeasonPacks"
+                    {...allowMultiSeasonPacks}
+                    onChange={handleInputChange}
+                  />
+                </FormRow>
+
+                <FormRow>
                   <FormLabel>{translate('UpgradesAllowed')}</FormLabel>
 
                   <FormInputHelpText
@@ -387,6 +407,7 @@ function EditQualityProfileModalContent({
                     type={inputTypes.CHECK}
                     name="upgradeAllowed"
                     {...upgradeAllowed}
+                    isDisabled={allowMultiSeasonPacks.value}
                     onChange={handleInputChange}
                   />
                 </FormRow>

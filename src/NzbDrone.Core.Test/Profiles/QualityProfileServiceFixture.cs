@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using FizzWare.NBuilder;
+using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.CustomFormats;
@@ -113,6 +114,35 @@ namespace NzbDrone.Core.Test.Profiles
             Assert.Throws<QualityProfileInUseException>(() => Subject.Delete(1));
 
             Mocker.GetMock<IQualityProfileRepository>().Verify(c => c.Delete(It.IsAny<int>()), Times.Never());
+        }
+
+        [Test]
+        public void should_disable_upgrades_when_adding_multi_season_profile()
+        {
+            var profile = new QualityProfile { AllowMultiSeasonPacks = true, UpgradeAllowed = true };
+            Mocker.GetMock<IQualityProfileRepository>().Setup(s => s.Insert(profile)).Returns(profile);
+
+            Subject.Add(profile);
+
+            Mocker.GetMock<IQualityProfileRepository>().Verify(s => s.Insert(It.Is<QualityProfile>(p => p.AllowMultiSeasonPacks && !p.UpgradeAllowed)));
+        }
+
+        [Test]
+        public void should_disable_upgrades_when_updating_multi_season_profile()
+        {
+            var profile = new QualityProfile { AllowMultiSeasonPacks = true, UpgradeAllowed = true };
+
+            Subject.Update(profile);
+
+            Mocker.GetMock<IQualityProfileRepository>().Verify(s => s.Update(It.Is<QualityProfile>(p => p.AllowMultiSeasonPacks && !p.UpgradeAllowed)));
+        }
+
+        [Test]
+        public void should_leave_both_options_off_for_new_profiles()
+        {
+            var profile = new QualityProfile();
+            profile.AllowMultiSeasonPacks.Should().BeFalse();
+            profile.UpgradeAllowed.Should().BeFalse();
         }
     }
 }
