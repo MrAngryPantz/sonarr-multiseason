@@ -24,13 +24,13 @@ namespace Sonarr.Api.V3.Qualities
                 return null;
             }
 
+            // Legacy clients require a numeric minimum; v5 keeps size limits on profiles.
             return new QualityDefinitionResource
             {
                 Id = model.Id,
                 Quality = model.Quality,
                 Title = model.Title,
                 Weight = model.Weight,
-                // Legacy clients require a numeric minimum; v5 keeps size limits on profiles.
                 MinSize = model.MinSize ?? 0,
                 MaxSize = model.MaxSize,
                 PreferredSize = model.PreferredSize
