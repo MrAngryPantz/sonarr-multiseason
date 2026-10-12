@@ -30,7 +30,8 @@ namespace Sonarr.Api.V3.Qualities
                 Quality = model.Quality,
                 Title = model.Title,
                 Weight = model.Weight,
-                MinSize = model.MinSize,
+                // Legacy clients require a numeric minimum; v5 keeps size limits on profiles.
+                MinSize = model.MinSize ?? 0,
                 MaxSize = model.MaxSize,
                 PreferredSize = model.PreferredSize
             };

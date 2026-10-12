@@ -324,6 +324,12 @@ class Audit:
             profile['allowMultiSeasonPacks'] = True
             self.api('qualityprofile/1', profile, method='PUT', version=version)
         print('PASS: both APIs enforce upgrades off', flush=True)
+
+        definitions = self.api('qualitydefinition', version=3)
+        assert definitions and all(isinstance(d.get('minSize'), (int, float)) for d in definitions), (
+            'Legacy quality-size clients require numeric minimum sizes'
+        )
+        print('PASS: API v3 quality definitions remain compatible with legacy size clients', flush=True)
         low_seeders = self.push('First indexer', seeders=2)
         assert any(r['reason'] == 'minimumSeeders' for r in low_seeders['decision']['rejections'])
         assert not self.grabs, 'Release below the minimum seeders was grabbed'
