@@ -17,6 +17,7 @@ namespace NzbDrone.Core.Parser.Model
         public int? MappedSeasonNumber { get; set; }
         public Series Series { get; set; }
         public List<Episode> Episodes { get; set; }
+        public List<int> UnmappedSeasonNumbers { get; set; } = new();
         public bool EpisodeRequested { get; set; }
         public bool DownloadAllowed { get; set; }
         public TorrentSeedConfiguration SeedConfiguration { get; set; }

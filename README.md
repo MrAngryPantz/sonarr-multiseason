@@ -14,7 +14,20 @@ This is experimental work based on Sonarr's v5 development branch and [IonBazan'
 
 The indexer must return a pack whose season range Sonarr can parse. Packs containing unmonitored episodes are rejected. If one video contains both an existing episode and a missing episode, it is left for manual review because importing it would replace an existing file. Packs download in full; this feature does not change torrent file priorities.
 
-The first version supports filling missing episodes. Upgrading multi-season packs is deliberately disabled.
+A pack can contain different qualities in different seasons. Its title is used for release selection; it does not prove the quality of every file. This fork keeps existing files and disables quality, custom format, proper and repack upgrades while the option is on. It does not try to make a mixed pack uniform.
+
+A season with no matching episode metadata blocks automatic selection. If a download was marked imported by an older version but still has missing episodes, it stays in the queue with a warning. Review and import the remaining files manually. A download client that deletes its own files independently of Sonarr still needs to be configured to keep them until import finishes.
+
+## Checks against the upstream concerns
+
+The [design discussion](https://github.com/Sonarr/Sonarr/issues/8938) and [incomplete-import reports](https://github.com/Sonarr/Sonarr/issues/8133) describe the main problems this fork needs to avoid:
+
+- Mixed qualities must not cause repeated downloads, including when another indexer offers the same pack. Completed packs are rejected, and queued episodes cannot be upgraded.
+- Importing one season must not allow the whole download to be deleted. Completion checks cover every expected episode. Removal checks current metadata and actual library files, including after a restart and when older completion history exists.
+- Season mapping and queue counts must cover all seasons. Each season uses its own mapping, missing metadata is reported, and queue counts refresh after a partial import. Interactive search shows the same rejection reasons used for automatic selection.
+- Existing files must survive a pack import. They are checked both when making import decisions and immediately before importing, including manually approved imports. Normal library scans still work.
+
+The automated tests cover these cases, ordinary single-season behaviour, profile migrations, both API versions and failure retries. The isolated trial also runs a real application process with a fresh database, generated video files and simulated indexers and download client. It exercises RSS selection, duplicate offers, mixed qualities, partial imports, queue counts, restarts and cleanup. It does not download real torrents or establish compatibility with every indexer or download client.
 
 ## Development
 
@@ -38,7 +51,22 @@ dotnet test src/NzbDrone.Api.Test/Sonarr.Api.Test.csproj \
   --filter 'FullyQualifiedName~MultiSeasonProfileFixture'
 ```
 
-The tests cover opting in, forcing upgrades off, filling gaps, preserving files, API settings and incomplete downloads. Test a fresh database before trying a copy of an existing library.
+Run the full unit suite without tests that require external services or manual setup:
+
+```sh
+dotnet test src/Sonarr.sln --no-build --no-restore \
+  --filter 'Category!=ManualTest&Category!=IntegrationTest&Category!=AutomationTest&Category!=WINDOWS'
+```
+
+That filter is for Linux. Windows tests should be run separately on Windows.
+
+The isolated application trial needs Python 3, FFmpeg and ffprobe. Put ffprobe beside the built application, as it is in a normal Sonarr installation, then run:
+
+```sh
+python3 scripts/test-multiseason.py --app _output/net10.0/Sonarr.dll
+```
+
+The script creates its own temporary application data and media folders, listens only on loopback and leaves its logs there for inspection. It never uses an existing Sonarr database or a real download client. Test a fresh database before trying a copy of an existing library.
 
 ## Credits and licence
 

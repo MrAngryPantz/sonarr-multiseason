@@ -91,6 +91,45 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
         }
 
         [Test]
+        public void should_keep_file_added_after_import_decisions_were_made()
+        {
+            var decision = _approvedDecisions.First();
+            decision.LocalEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            decision.LocalEpisode.Episodes.Single().EpisodeFileId = 0;
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodes(It.IsAny<IEnumerable<int>>()))
+                .Returns([new Episode { Id = decision.LocalEpisode.Episodes.Single().Id, EpisodeFileId = 123 }]);
+
+            var result = Subject.Import([decision], true);
+
+            result.Single().Result.Should().Be(ImportResultType.Skipped);
+            Mocker.GetMock<IUpgradeMediaFiles>().Verify(s => s.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), It.IsAny<LocalEpisode>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IMediaFileService>().Verify(s => s.Add(It.IsAny<EpisodeFile>()), Times.Never());
+        }
+
+        [Test]
+        public void should_keep_existing_file_even_if_import_was_manually_approved()
+        {
+            var decision = _approvedDecisions.First();
+            decision.LocalEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            decision.LocalEpisode.Episodes.Single().EpisodeFileId = 123;
+
+            Subject.Import([decision], true).Single().Result.Should().Be(ImportResultType.Skipped);
+
+            Mocker.GetMock<IUpgradeMediaFiles>().Verify(s => s.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), It.IsAny<LocalEpisode>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_import_missing_file_after_rechecking_the_library()
+        {
+            var decision = _approvedDecisions.First();
+            decision.LocalEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            decision.LocalEpisode.Episodes.Single().EpisodeFileId = 0;
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodes(It.IsAny<IEnumerable<int>>())).Returns(decision.LocalEpisode.Episodes);
+
+            Subject.Import([decision], true).Single().Result.Should().Be(ImportResultType.Imported);
+        }
+
+        [Test]
         public void should_not_import_any_if_there_are_no_approved_decisions()
         {
             Subject.Import(_rejectedDecisions, false).Where(i => i.Result == ImportResultType.Imported).Should().BeEmpty();

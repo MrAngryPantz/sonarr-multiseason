@@ -13,6 +13,7 @@ using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
+using NzbDrone.Core.Tv;
 
 namespace NzbDrone.Core.MediaFiles.EpisodeImport
 {
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
         private readonly IHistoryService _historyService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly IEpisodeService _episodeService;
         private readonly Logger _logger;
 
         public ImportApprovedEpisodes(IUpgradeMediaFiles episodeFileUpgrader,
@@ -41,6 +43,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                                       IHistoryService historyService,
                                       IEventAggregator eventAggregator,
                                       IManageCommandQueue commandQueueManager,
+                                      IEpisodeService episodeService,
                                       Logger logger)
         {
             _episodeFileUpgrader = episodeFileUpgrader;
@@ -51,6 +54,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             _historyService = historyService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _episodeService = episodeService;
             _logger = logger;
         }
 
@@ -81,6 +85,16 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                                          .Any())
                     {
                         importResults.Add(new ImportResult(importDecision, "Episode has already been imported"));
+                        continue;
+                    }
+
+                    // Decisions can predate another import or be approved manually.
+                    // Recheck the library before the upgrader can remove any files.
+                    if (newDownload && localEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks &&
+                        (localEpisode.Episodes.Any(e => e.EpisodeFileId > 0) ||
+                         _episodeService.GetEpisodes(localEpisode.Episodes.Select(e => e.Id)).Any(e => e.EpisodeFileId > 0)))
+                    {
+                        importResults.Add(new ImportResult(importDecision, "Existing episode files are kept while multi-season packs are enabled"));
                         continue;
                     }
 

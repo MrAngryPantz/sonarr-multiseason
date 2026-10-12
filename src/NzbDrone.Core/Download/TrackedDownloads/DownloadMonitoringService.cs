@@ -139,9 +139,14 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
         private bool DownloadIsTrackable(TrackedDownload trackedDownload)
         {
-            // If the download has already been imported, failed or the user ignored it don't track it
-            if (trackedDownload.State == TrackedDownloadState.Imported ||
-                trackedDownload.State == TrackedDownloadState.Failed ||
+            // Keep incomplete packs visible even if an older version marked them imported.
+            if (trackedDownload.State == TrackedDownloadState.Imported)
+            {
+                return !_completedDownloadService.CanRemove(trackedDownload);
+            }
+
+            // If the download failed or the user ignored it don't track it
+            if (trackedDownload.State == TrackedDownloadState.Failed ||
                 trackedDownload.State == TrackedDownloadState.Ignored)
             {
                 return false;

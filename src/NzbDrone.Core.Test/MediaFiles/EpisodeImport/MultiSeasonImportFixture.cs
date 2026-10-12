@@ -201,17 +201,18 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
         }
 
         [Test]
-        public void should_import_available_seasons_when_download_lists_more_seasons_than_series_has()
+        public void should_import_available_seasons_but_retain_pack_when_season_metadata_is_missing()
         {
             _trackedDownload.DownloadItem.Title = "Friends.S01-S05.1080p.BluRay.x264-GRP";
-            _trackedDownload.RemoteEpisode.ParsedEpisodeInfo = Parser.Parser.ParseTitle(_trackedDownload.DownloadItem.Title);
+            _trackedDownload.RemoteEpisode = Mocker.Resolve<IParsingService>().Map(Parser.Parser.ParseTitle(_trackedDownload.DownloadItem.Title), _series);
 
             Subject.Import(_trackedDownload);
 
             Mocker.GetMock<IUpgradeMediaFiles>()
                   .Verify(s => s.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), It.IsAny<LocalEpisode>(), It.IsAny<bool>()), Times.Exactly(6));
 
-            _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+            _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]

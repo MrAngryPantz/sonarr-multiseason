@@ -44,6 +44,16 @@ namespace NzbDrone.Core.Test.DecisionEngineTests
         }
 
         [Test]
+        public void should_reject_pack_with_an_unmapped_season_in_rss_and_interactive_search()
+        {
+            _remoteEpisode.Series.QualityProfile.Value.AllowMultiSeasonPacks = true;
+            _remoteEpisode.UnmappedSeasonNumbers = [5];
+
+            Subject.IsSatisfiedBy(_remoteEpisode, new()).Accepted.Should().BeFalse();
+            Subject.IsSatisfiedBy(_remoteEpisode, new(false, new SeasonSearchCriteria { InteractiveSearch = true })).Accepted.Should().BeFalse();
+        }
+
+        [Test]
         public void should_return_true_if_is_not_a_multi_season_release()
         {
             _remoteEpisode.ParsedEpisodeInfo.SeasonNumbers = [1];

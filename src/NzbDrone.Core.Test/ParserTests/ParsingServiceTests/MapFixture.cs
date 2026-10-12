@@ -83,6 +83,35 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
         }
 
         [Test]
+        public void should_report_seasons_with_missing_metadata()
+        {
+            _parsedEpisodeInfo.SeasonNumbers = [1, 2];
+            _parsedEpisodeInfo.FullSeason = true;
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodesBySeason(_series.Id, 1)).Returns(_episodes);
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodesBySeason(_series.Id, 2)).Returns([]);
+
+            var result = Subject.Map(_parsedEpisodeInfo, _series);
+
+            result.Episodes.Should().Equal(_episodes);
+            result.UnmappedSeasonNumbers.Should().Equal(2);
+        }
+
+        [Test]
+        public void should_remap_all_pack_seasons_when_grab_history_has_only_one_season()
+        {
+            _parsedEpisodeInfo.SeasonNumbers = [1, 2];
+            _parsedEpisodeInfo.FullSeason = true;
+            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(_series.Id)).Returns(_series);
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodesBySeason(_series.Id, It.IsIn(1, 2)))
+                .Returns<int, int>((_, season) => [new Episode { Id = season, SeasonNumber = season }]);
+
+            var result = Subject.Map(_parsedEpisodeInfo, _series.Id, new[] { 1 });
+
+            result.Episodes.Select(e => e.SeasonNumber).Should().Equal(1, 2);
+            result.UnmappedSeasonNumbers.Should().BeEmpty();
+        }
+
+        [Test]
         public void should_lookup_series_by_name()
         {
             GivenMatchBySeriesTitle();

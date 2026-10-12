@@ -164,6 +164,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                 .Verify(v => v.PublishEvent<DownloadCompletedEvent>(It.IsAny<DownloadCompletedEvent>()), Times.Never());
 
             AssertNotImported();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -189,6 +191,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Import(_trackedDownload);
 
             AssertNotImported();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -205,6 +209,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Import(_trackedDownload);
 
             AssertNotImported();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -233,6 +239,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Import(_trackedDownload);
 
             AssertNotImported();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -268,6 +276,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Import(_trackedDownload);
 
             AssertNotImported();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -455,6 +465,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
 
             Mocker.GetMock<IEventAggregator>()
                   .Verify(v => v.PublishEvent(It.IsAny<ManualInteractionRequiredEvent>()), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         private void AssertNotImported()
@@ -474,6 +486,27 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
                   .Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Once());
 
             _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+        }
+
+        [Test]
+        public void should_update_queue_episode_counts_after_a_partial_pack_import()
+        {
+            var episodes = GivenMultiSeasonDownload();
+            _trackedDownload.RemoteEpisode.Series.QualityProfile = new QualityProfile { AllowMultiSeasonPacks = true };
+            var current = episodes.Select(e => new Episode
+            {
+                Id = e.Id,
+                SeasonNumber = e.SeasonNumber,
+                EpisodeNumber = e.EpisodeNumber,
+                EpisodeFileId = e == episodes.Last() ? 0 : e.Id
+            }).ToList();
+            Mocker.GetMock<IEpisodeService>().Setup(s => s.GetEpisodes(It.IsAny<IEnumerable<int>>())).Returns(current);
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFiles(It.IsAny<IEnumerable<int>>())).Returns(new List<EpisodeFile>());
+
+            Subject.VerifyImport(_trackedDownload, new List<ImportResult>()).Should().BeFalse();
+
+            _trackedDownload.RemoteEpisode.Episodes.Count(e => e.EpisodeFileId > 0).Should().Be(5);
+            _trackedDownload.RemoteEpisode.Episodes.Select(e => e.Id).Should().Equal(current.Select(e => e.Id));
         }
 
         [Test]

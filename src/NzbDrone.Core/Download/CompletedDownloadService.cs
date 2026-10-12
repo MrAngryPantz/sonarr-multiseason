@@ -23,6 +23,7 @@ namespace NzbDrone.Core.Download
         void Check(TrackedDownload trackedDownload);
         void Import(TrackedDownload trackedDownload);
         bool VerifyImport(TrackedDownload trackedDownload, List<ImportResult> importResults);
+        bool CanRemove(TrackedDownload trackedDownload);
     }
 
     public class CompletedDownloadService : ICompletedDownloadService
@@ -217,6 +218,12 @@ namespace NzbDrone.Core.Download
             var isMultiSeason = remoteEpisode.ParsedEpisodeInfo?.IsMultiSeason == true;
             var missingEpisodesOnly = remoteEpisode.ParsedEpisodeInfo?.FullSeason == true && remoteEpisode.Series.QualityProfile?.Value?.AllowMultiSeasonPacks == true;
 
+            if (isMultiSeason && remoteEpisode.UnmappedSeasonNumbers.Any())
+            {
+                trackedDownload.Warn("Pack contains seasons that could not be matched to episodes; check the series metadata before removing it");
+                return false;
+            }
+
             if (isMultiSeason || missingEpisodesOnly)
             {
                 var expectedIds = remoteEpisode.Episodes.Select(e => e.Id).ToHashSet();
@@ -232,6 +239,18 @@ namespace NzbDrone.Core.Download
                 if (missingEpisodesOnly && !allEpisodesImported && expectedIds.Count > 0)
                 {
                     var episodes = _episodeService.GetEpisodes(expectedIds);
+                    var currentEpisodes = episodes.ToDictionary(e => e.Id);
+
+                    // The queue shares this list. Refresh its file counts after a
+                    // partial import without dropping any expected episode IDs.
+                    for (var i = 0; i < remoteEpisode.Episodes.Count; i++)
+                    {
+                        if (currentEpisodes.TryGetValue(remoteEpisode.Episodes[i].Id, out var currentEpisode))
+                        {
+                            remoteEpisode.Episodes[i] = currentEpisode;
+                        }
+                    }
+
                     var files = _mediaFileService.GetFiles(episodes.Where(e => e.EpisodeFileId > 0).Select(e => e.EpisodeFileId).Distinct());
                     var existingFileIds = files.Where(f => f.RelativePath.IsNotNullOrWhiteSpace() &&
                             _diskProvider.FileExists(Path.Combine(remoteEpisode.Series.Path, f.RelativePath)))
@@ -312,6 +331,47 @@ namespace NzbDrone.Core.Download
             }
 
             _logger.Debug("Not all episodes have been imported for the release '{0}'", trackedDownload.DownloadItem.Title);
+            return false;
+        }
+
+        public bool CanRemove(TrackedDownload trackedDownload)
+        {
+            var remoteEpisode = trackedDownload.RemoteEpisode;
+            var parsed = remoteEpisode?.ParsedEpisodeInfo ?? Parser.Parser.ParseTitle(trackedDownload.DownloadItem.Title);
+
+            if (parsed?.IsMultiSeason != true &&
+                !(parsed?.FullSeason == true && remoteEpisode?.Series?.QualityProfile?.Value?.AllowMultiSeasonPacks == true))
+            {
+                return true;
+            }
+
+            try
+            {
+                // Completion history can come from a version that imported only one
+                // season. Check current metadata and real files again before deletion.
+                var series = remoteEpisode?.Series == null ? null : _seriesService.GetSeries(remoteEpisode.Series.Id);
+                var current = series == null ? null : _parsingService.Map(parsed, series);
+
+                if (current != null && current.UnmappedSeasonNumbers.Empty() && current.Episodes.Any())
+                {
+                    var files = _mediaFileService.GetFiles(current.Episodes.Where(e => e.EpisodeFileId > 0).Select(e => e.EpisodeFileId).Distinct());
+                    var presentFileIds = files.Where(f => f.RelativePath.IsNotNullOrWhiteSpace() &&
+                            _diskProvider.FileExists(Path.Combine(series.Path, f.RelativePath)))
+                        .Select(f => f.Id)
+                        .ToHashSet();
+
+                    if (current.Episodes.All(e => presentFileIds.Contains(e.EpisodeFileId)))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.Debug(e, "Unable to verify pack before removal: {0}", trackedDownload.DownloadItem.Title);
+            }
+
+            trackedDownload.Warn("Pack retained: some episodes are missing or a season could not be matched. Check the files before removing this download");
             return false;
         }
 

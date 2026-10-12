@@ -33,6 +33,11 @@ namespace NzbDrone.Core.DecisionEngine.Specifications
                     return DownloadSpecDecision.Reject(DownloadRejectionReason.EpisodeNotMonitored, "All episodes in a multi-season pack must be monitored");
                 }
 
+                if (subject.UnmappedSeasonNumbers.Any())
+                {
+                    return DownloadSpecDecision.Reject(DownloadRejectionReason.MultiSeason, "Some seasons in this pack could not be matched to episodes: {0}", string.Join(", ", subject.UnmappedSeasonNumbers));
+                }
+
                 if (!subject.Episodes.Any(e => e.EpisodeFileId == 0))
                 {
                     return DownloadSpecDecision.Reject(DownloadRejectionReason.DiskUpgradesNotAllowed, "Multi-season packs only fill missing episodes; existing files are kept");
