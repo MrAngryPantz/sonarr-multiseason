@@ -45,7 +45,7 @@ The [design discussion](https://github.com/Sonarr/Sonarr/issues/8938) and [incom
 
 The automated tests cover these cases, ordinary single-season behaviour, profile migrations, both API versions and failure retries. The isolated trial also runs a real application process with a fresh database, generated video files and simulated indexers and download client. It exercises automatic and interactive episode/season searches, three different indexer capability sets, RSS selection, duplicate offers, mixed qualities, partial imports, queue counts, restarts and cleanup. It does not download real torrents or establish compatibility with every indexer or download client.
 
-The 12 October 2026 checks passed 6,360 unit tests on Linux and 6,381 on Windows 11 x64. The isolated import trial passed on Linux and with both Windows executables, using paths containing spaces. Tests requiring external services or manual setup were excluded.
+Full unit suites run on Linux and Windows. Isolated import trials run on Linux and with both Windows executables, including paths with spaces and Windows short folder names. Tests requiring external services or manual setup are excluded.
 
 ## Development
 

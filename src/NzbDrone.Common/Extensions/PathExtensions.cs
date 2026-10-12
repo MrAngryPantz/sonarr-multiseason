@@ -84,6 +84,9 @@ namespace NzbDrone.Common.Extensions
 
         public static string GetRelativePath(this string parentPath, string childPath)
         {
+            parentPath = ExpandWindowsShortPath(parentPath);
+            childPath = ExpandWindowsShortPath(childPath);
+
             if (!parentPath.IsParentPath(childPath))
             {
                 throw new NotParentException("{0} is not a child of {1}", childPath, parentPath);
@@ -122,8 +125,8 @@ namespace NzbDrone.Common.Extensions
 
         public static bool IsParentPath(this string parentPath, string childPath)
         {
-            var parent = new OsPath(parentPath);
-            var child = new OsPath(childPath);
+            var parent = new OsPath(ExpandWindowsShortPath(parentPath));
+            var child = new OsPath(ExpandWindowsShortPath(childPath));
 
             while (child.Directory != OsPath.Null)
             {
@@ -136,6 +139,18 @@ namespace NzbDrone.Common.Extensions
             }
 
             return false;
+        }
+
+        private static string ExpandWindowsShortPath(string path)
+        {
+            // Windows can supply an 8.3 alias for TEMP or a library folder. Compare
+            // both paths using long names before checking ancestry or taking a substring.
+            if (OsInfo.IsWindows && path?.Contains('~') == true && Path.IsPathFullyQualified(path))
+            {
+                return path.CleanFilePath();
+            }
+
+            return path;
         }
 
         private static readonly Regex WindowsPathWithDriveRegex = new Regex(@"^[a-zA-Z]:\\", RegexOptions.Compiled);
