@@ -43,6 +43,8 @@ namespace Sonarr.Http.Test.Authentication
         public void should_issue_a_token_of_the_expected_length()
         {
             Subject.RequestPasswordReset(_request).Length.Should().Be(20);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -54,6 +56,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Upsert("sonarr", "newpassword"), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -65,6 +69,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Upsert("renamed", "newpassword"), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -76,6 +82,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Upsert(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -85,12 +93,16 @@ namespace Sonarr.Http.Test.Authentication
 
             Subject.ResetPassword(_request, token, "sonarr", "newpassword").Should().BeTrue();
             Subject.ResetPassword(_request, token, "sonarr", "anotherpassword").Should().BeFalse();
+
+            ExceptionVerification.ExpectedWarns(3);
         }
 
         [Test]
         public void should_reject_when_no_token_was_requested()
         {
             Subject.ResetPassword(_request, "AnyTokenAtAll", "sonarr", "newpassword").Should().BeFalse();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -102,6 +114,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Upsert(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -122,6 +136,8 @@ namespace Sonarr.Http.Test.Authentication
             _request.HttpContext.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.11");
 
             Subject.RequestPasswordReset(_request).Should().BeNull();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -137,6 +153,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Upsert("sonarr", "newpassword"), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -149,6 +167,8 @@ namespace Sonarr.Http.Test.Authentication
             second.Should().BeNull();
 
             Subject.ResetPassword(_request, first, "sonarr", "newpassword").Should().BeTrue();
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -172,6 +192,8 @@ namespace Sonarr.Http.Test.Authentication
                 .Returns(new AuthOptions { ResetToken = "abcdefghijklmnopqrst" });
 
             Subject.ResetPassword(_request, "abcdefghijklmnopqrst", "sonarr", "newpassword").Should().BeTrue();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -183,6 +205,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Subject.ResetPassword(_request, "abcdefghijklmnopqrst", "sonarr", "newpassword").Should().BeTrue();
             Subject.ResetPassword(_request, "abcdefghijklmnopqrst", "sonarr", "anotherpassword").Should().BeFalse();
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -198,6 +222,8 @@ namespace Sonarr.Http.Test.Authentication
                 .Verify(c => c.Upsert(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
 
             ExceptionVerification.ExpectedErrors(1);
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -211,6 +237,8 @@ namespace Sonarr.Http.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Upsert(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

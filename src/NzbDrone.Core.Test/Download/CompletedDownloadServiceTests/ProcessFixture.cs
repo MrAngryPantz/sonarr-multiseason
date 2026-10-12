@@ -165,6 +165,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Check(_trackedDownload);
 
             AssertNotReadyToImport();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -177,6 +179,8 @@ namespace NzbDrone.Core.Test.Download.CompletedDownloadServiceTests
             Subject.Check(_trackedDownload);
 
             AssertNotReadyToImport();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         private void AssertNotReadyToImport()

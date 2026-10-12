@@ -52,6 +52,8 @@ namespace NzbDrone.Core.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Add("sonarr", It.Is<string>(p => p.Length == 20)), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
@@ -124,6 +126,8 @@ namespace NzbDrone.Core.Test.Authentication
 
             Mocker.GetMock<IUserService>()
                 .Verify(c => c.Add("sonarr", It.Is<string>(p => p.Length == 20)), Times.Once());
+
+            ExceptionVerification.ExpectedWarns(2);
         }
 
         [Test]
