@@ -29,7 +29,7 @@ def free_port():
 class Audit:
     def __init__(self, args):
         self.args = args
-        self.root = Path(tempfile.mkdtemp(prefix='sonarr-pack-audit-'))
+        self.root = Path(tempfile.mkdtemp(prefix='sonarr pack audit '))
         self.data = self.root / 'appdata'
         self.library = self.root / 'library' / 'Example Show'
         self.downloads = self.root / 'downloads'
@@ -44,6 +44,7 @@ class Audit:
         self.deletions = []
         self.rss_round = 0
         self.rss_sources = set()
+        self.search_requests = []
         self.present = False
         self.state = 'downloading'
         self.log_handle = None
@@ -70,7 +71,8 @@ class Audit:
 
     def start(self):
         self.log_handle = (self.root / 'host.log').open('a')
-        self.process = subprocess.Popen([self.args.dotnet, str(self.args.app), '-nobrowser', f'-data={self.data}'],
+        executable = [str(self.args.app)] if self.args.app.suffix.lower() == '.exe' else [self.args.dotnet, str(self.args.app)]
+        self.process = subprocess.Popen([*executable, '-nobrowser', f'-data={self.data}'],
                                         stdout=self.log_handle, stderr=subprocess.STDOUT)
         for _ in range(180):
             if self.process.poll() is not None:
@@ -107,8 +109,17 @@ class Audit:
     def server(self):
         audit = self
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+
             def log_message(self, *_):
                 pass
+
+            def handle(self):
+                try:
+                    super().handle()
+                except (ConnectionResetError, BrokenPipeError):
+                    # The application closes persistent connections when the trial stops it.
+                    pass
 
             def do_GET(self):
                 self.handle_request()
@@ -128,16 +139,25 @@ class Audit:
                             '<server version="1.0"/>'
                             '<limits max="100" default="100"/>'
                             '<searching>'
-                            '<search available="yes" supportedParams="q"/>'
-                            '<tv-search available="yes" supportedParams="q,tvdbid,season,ep"/>'
-                            '</searching>'
+                            + ('<search available="yes" supportedParams="q"/>' if '/2/' not in path else '')
+                            + ('<tv-search available="yes" supportedParams="q,tvdbid,season,ep"/>' if '/1/' in path
+                               else '<tv-search available="yes" supportedParams="title,season,ep"/>' if '/2/' in path else '')
+                            + '</searching>'
                             '<categories>'
                             '<category id="5000" name="TV"/>'
                             '</categories>'
                             '</caps>'
                         )
                     else:
-                        audit.rss_sources.add(path)
+                        is_search = any(k in query for k in ('q', 'title', 'tvdbid', 'season', 'ep'))
+                        if is_search:
+                            audit.search_requests.append((path, query))
+                        else:
+                            audit.rss_sources.add(path)
+                        # ID searches return episodes but miss the pack. Season/episode filters
+                        # also hide it, as they do on indexers with single-season metadata.
+                        restricted = any(k in query for k in ('season', 'ep', 'tvdbid'))
+                        release_title = 'Example.Show.S01E01.720p.HDTV-Test' if restricted else audit.title
                         magnet = f'magnet:?xt=urn:btih:{audit.hash}'
                         guid = f'http://127.0.0.1:{audit.client_port}{path}/release/{audit.rss_round}'
                         response = (
@@ -147,7 +167,7 @@ class Audit:
                             f'<description>Test data</description>'
                             f'<link>http://127.0.0.1</link>'
                             f'<item>'
-                            f'<title>{audit.title}</title>'
+                            f'<title>{release_title}</title>'
                             f'<guid>{guid}</guid>'
                             f'<pubDate>{formatdate(usegmt=True)}</pubDate>'
                             f'<link>{magnet}</link>'
@@ -162,6 +182,8 @@ class Audit:
                             f'</channel>'
                             f'</rss>'
                         )
+                        if restricted:
+                            response = response.replace(f'<guid>{guid}</guid>', f'<guid>{guid}/episode</guid>')
                 elif path.endswith('/app/webapiVersion'):
                     response = '2.11.2'
                 elif path.endswith('/app/version'):
@@ -256,7 +278,7 @@ class Audit:
         return self.api('release/push', {
             'title': self.title, 'size': 1200000000, 'tvdbId': 900000001,
             'indexer': indexer, 'publishDate': '2026-01-01T00:00:00Z',
-            'downloadUrl': f'http://127.0.0.1:{self.client_port}/release/{indexer.replace(' ', '-')}{suffix}',
+            'downloadUrl': f'http://127.0.0.1:{self.client_port}/release/{indexer.replace(" ", "-")}{suffix}',
             'magnetUrl': f'magnet:?xt=urn:btih:{self.hash}&dn=Example.Show',
             'infoHash': self.hash, 'seeders': seeders, 'leechers': 0, 'protocol': 'torrent', 'downloadClientId': 1})
 
@@ -287,13 +309,25 @@ class Audit:
         low_seeders = self.push('First indexer', seeders=2)
         assert any(r['reason'] == 'minimumSeeders' for r in low_seeders['decision']['rejections'])
         assert not self.grabs, 'Release below the minimum seeders was grabbed'
-        self.command('RssSync')
-        assert len(self.rss_sources) == 3, 'RSS did not query all simulated indexers'
+        for query in ('seriesId=1&seasonNumber=2', 'episodeId=5'):
+            results = self.api(f'release?{query}')
+            packs = [r for r in results if r['release']['title'] == self.title]
+            assert {r['release']['indexerId'] for r in packs} == {1, 2, 3}, 'A capability variant could not discover the pack'
+            assert all(r['decision']['approved'] for r in packs), 'Discovered pack was unexpectedly rejected'
+        assert any('tvdbid' in q for _, q in self.search_requests), 'ID search was not exercised'
+        assert any('title' in q for _, q in self.search_requests), 'TV title search was not exercised'
+        assert any(q.get('t') == ['search'] and 'q' in q for _, q in self.search_requests), 'Generic search was not exercised'
+        print('PASS: episode and season searches find packs through ID, TV title and generic search capabilities', flush=True)
+        self.command('RssSync' if self.args.grab_method == 'rss' else 'SeasonSearch',
+                     **({} if self.args.grab_method == 'rss' else {'seriesId': 1, 'seasonNumber': 2}))
         assert len(self.grabs) == 1, 'Missing episodes did not trigger a pack grab'
+        self.command('RssSync')
+        assert len(self.rss_sources) == 3, f'RSS did not query all simulated indexers: {sorted(self.rss_sources)}'
+        assert len(self.grabs) == 1, 'RSS duplicated the selected pack'
         self.process_downloads()
         decision = self.push('Second indexer')
         assert not decision['decision']['approved'] and len(self.grabs) == 1, 'Queued pack was grabbed twice'
-        print('PASS: RSS selects one pack across three indexers; minimum seeders and queue deduplication work', flush=True)
+        print(f'PASS: {self.args.grab_method} selects one pack across three indexers; seeders and queue deduplication work', flush=True)
         self.state = 'stoppedUP'
         self.process_downloads()
         episodes = self.episodes()
@@ -334,16 +368,17 @@ class Audit:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dotnet', default='dotnet')
+    parser.add_argument('--grab-method', choices=('search', 'rss'), default='search')
     parser.add_argument('--app', required=True, type=Path)
     args = parser.parse_args()
     args.app = args.app.resolve()
     if not args.app.is_file():
-        parser.error('Build the application first, then pass the path to Sonarr.dll')
+        parser.error('Build the application first, then pass the path to Sonarr.dll or Sonarr.Console.exe')
     if shutil.which('ffmpeg') is None:
         parser.error('FFmpeg must be installed and on PATH')
     probe = args.app.parent / ('ffprobe.exe' if os.name == 'nt' else 'ffprobe')
     if not probe.is_file():
-        parser.error('Place ffprobe beside Sonarr.dll before running the trial')
+        parser.error('Place ffprobe beside the application before running the trial')
     audit = Audit(args)
     try:
         audit.run()

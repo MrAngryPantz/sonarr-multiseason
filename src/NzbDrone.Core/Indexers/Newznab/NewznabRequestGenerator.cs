@@ -205,10 +205,39 @@ namespace NzbDrone.Core.Indexers.Newznab
             }
             else if (capabilities.SupportedSearchParameters != null)
             {
-                pageableRequests.Add(GetPagedRequests(MaxPages, Settings.AnimeCategories, "search", ""));
+                pageableRequests.Add(GetPagedRequests(MaxPages, Settings.Categories.Concat(Settings.AnimeCategories), "search", ""));
             }
 
             return pageableRequests;
+        }
+
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            var requests = new IndexerPageableRequestChain();
+            var categories = GetSearchCategories(searchCriteria);
+
+            if (searchCriteria.SearchMode == SearchMode.Default || searchCriteria.SearchMode.HasFlag(SearchMode.SearchTitle))
+            {
+                // Packs may have no series ID or season metadata. Search all supported text
+                // endpoints even when the ID query returns individual episodes.
+                if (SupportsSearch)
+                {
+                    var titles = TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles;
+                    foreach (var title in titles)
+                    {
+                        requests.Add(GetPagedRequests(MaxPages, categories, "search", $"&q={NewsnabifyTitle(title)}"));
+                    }
+                }
+
+                AddTitlePageableRequests(requests, categories, searchCriteria, "");
+            }
+
+            if (searchCriteria.SearchMode == SearchMode.Default || searchCriteria.SearchMode.HasFlag(SearchMode.SearchID))
+            {
+                AddTvIdPageableRequests(requests, categories, searchCriteria, "");
+            }
+
+            return requests;
         }
 
         public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
@@ -597,7 +626,7 @@ namespace NzbDrone.Core.Indexers.Newznab
                 foreach (var searchTerm in searchCriteria.SceneTitles)
                 {
                     chain.Add(GetPagedRequests(MaxPages,
-                        Settings.Categories,
+                        categories,
                         "tvsearch",
                         $"&title={Uri.EscapeDataString(searchTerm)}{parameters}"));
                 }
@@ -608,7 +637,7 @@ namespace NzbDrone.Core.Indexers.Newznab
                 foreach (var queryTitle in queryTitles)
                 {
                     chain.Add(GetPagedRequests(MaxPages,
-                        Settings.Categories,
+                        categories,
                         "tvsearch",
                         $"&q={NewsnabifyTitle(queryTitle)}{parameters}"));
                 }

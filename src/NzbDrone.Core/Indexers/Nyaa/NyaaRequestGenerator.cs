@@ -19,6 +19,17 @@ namespace NzbDrone.Core.Indexers.Nyaa
             return pageableRequests;
         }
 
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            var requests = new IndexerPageableRequestChain();
+            foreach (var title in searchCriteria.SceneTitles.Distinct())
+            {
+                requests.Add(GetPagedRequests(Uri.EscapeDataString(title)));
+            }
+
+            return requests;
+        }
+
         public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
             var pageableRequests = new IndexerPageableRequestChain();

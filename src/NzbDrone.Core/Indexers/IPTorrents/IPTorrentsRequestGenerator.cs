@@ -17,6 +17,11 @@ namespace NzbDrone.Core.Indexers.IPTorrents
             return pageableRequests;
         }
 
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            return new IndexerPageableRequestChain();
+        }
+
         public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
             return new IndexerPageableRequestChain();

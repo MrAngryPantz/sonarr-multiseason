@@ -29,6 +29,17 @@ namespace NzbDrone.Core.Indexers.Fanzub
             return pageableRequests;
         }
 
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            var requests = new IndexerPageableRequestChain();
+            foreach (var title in searchCriteria.CleanSceneTitles)
+            {
+                requests.Add(GetPagedRequests(CleanTitle(title)));
+            }
+
+            return requests;
+        }
+
         public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
             return new IndexerPageableRequestChain();

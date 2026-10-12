@@ -74,6 +74,7 @@ namespace NzbDrone.Core.Indexers
         protected TSettings Settings => (TSettings)Definition.Settings;
 
         public abstract Task<IList<ReleaseInfo>> FetchRecent();
+        public abstract Task<IList<ReleaseInfo>> Fetch(MultiSeasonSearchCriteria searchCriteria);
         public abstract Task<IList<ReleaseInfo>> Fetch(SeasonSearchCriteria searchCriteria);
         public abstract Task<IList<ReleaseInfo>> Fetch(SingleEpisodeSearchCriteria searchCriteria);
         public abstract Task<IList<ReleaseInfo>> Fetch(DailyEpisodeSearchCriteria searchCriteria);

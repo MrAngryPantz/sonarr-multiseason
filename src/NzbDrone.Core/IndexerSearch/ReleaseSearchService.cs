@@ -32,6 +32,7 @@ namespace NzbDrone.Core.IndexerSearch
         private readonly ISeriesService _seriesService;
         private readonly IEpisodeService _episodeService;
         private readonly IMakeDownloadDecision _makeDownloadDecision;
+        private readonly IMultiSeasonSearchService _multiSeasonSearch;
         private readonly Logger _logger;
 
         public ReleaseSearchService(IIndexerFactory indexerFactory,
@@ -39,6 +40,7 @@ namespace NzbDrone.Core.IndexerSearch
                                 ISeriesService seriesService,
                                 IEpisodeService episodeService,
                                 IMakeDownloadDecision makeDownloadDecision,
+                                IMultiSeasonSearchService multiSeasonSearch,
                                 Logger logger)
         {
             _indexerFactory = indexerFactory;
@@ -46,6 +48,7 @@ namespace NzbDrone.Core.IndexerSearch
             _seriesService = seriesService;
             _episodeService = episodeService;
             _makeDownloadDecision = makeDownloadDecision;
+            _multiSeasonSearch = multiSeasonSearch;
             _logger = logger;
         }
 
@@ -582,16 +585,34 @@ namespace NzbDrone.Core.IndexerSearch
 
         private async Task<IList<ReleaseInfo>> DispatchIndexer(Func<IIndexer, Task<IList<ReleaseInfo>>> searchAction, IIndexer indexer, SearchCriteriaBase criteriaBase)
         {
+            var reports = new List<ReleaseInfo>();
+
             try
             {
-                return await searchAction(indexer);
+                reports.AddRange(await searchAction(indexer));
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error while searching for {0}", criteriaBase);
             }
 
-            return Array.Empty<ReleaseInfo>();
+            var profile = criteriaBase.Series.QualityProfile?.Value;
+            if (profile?.AllowMultiSeasonPacks == true && !profile.UpgradeAllowed)
+            {
+                try
+                {
+                    reports.AddRange(await _multiSeasonSearch.Search(indexer, criteriaBase));
+                }
+                catch (Exception ex)
+                {
+                    // A failed pack query must not discard the ordinary search results.
+                    _logger.Error(ex, "Error while searching for multi-season packs for {0}", criteriaBase);
+                }
+
+                return reports.DistinctBy(r => r.Guid).ToList();
+            }
+
+            return reports;
         }
 
         private List<DownloadDecision> DeDupeDecisions(List<DownloadDecision> decisions)

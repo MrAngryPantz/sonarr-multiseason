@@ -14,6 +14,7 @@ namespace NzbDrone.Core.Indexers
         DownloadProtocol Protocol { get; }
 
         Task<IList<ReleaseInfo>> FetchRecent();
+        Task<IList<ReleaseInfo>> Fetch(MultiSeasonSearchCriteria searchCriteria);
         Task<IList<ReleaseInfo>> Fetch(SeasonSearchCriteria searchCriteria);
         Task<IList<ReleaseInfo>> Fetch(SingleEpisodeSearchCriteria searchCriteria);
         Task<IList<ReleaseInfo>> Fetch(DailyEpisodeSearchCriteria searchCriteria);

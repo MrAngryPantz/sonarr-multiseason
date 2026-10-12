@@ -39,6 +39,19 @@ namespace NzbDrone.Core.Indexers.BroadcastheNet
             return pageableRequests;
         }
 
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            var requests = new IndexerPageableRequestChain();
+            var parameters = new BroadcastheNetTorrentQuery();
+
+            if (AddSeriesSearchParameters(parameters, searchCriteria))
+            {
+                requests.Add(GetPagedRequests(MaxPages, parameters));
+            }
+
+            return requests;
+        }
+
         public virtual IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
             var pageableRequests = new IndexerPageableRequestChain();

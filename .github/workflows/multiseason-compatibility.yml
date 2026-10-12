@@ -1,0 +1,83 @@
+name: Multi-season compatibility
+
+on:
+  push:
+    branches: [automatic-multiseason]
+  pull_request:
+    branches: [automatic-multiseason]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multiseason-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: yarn
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build web interface
+        shell: bash
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile
+          yarn typecheck
+          yarn build
+      - name: Build and test Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          dotnet build src/Sonarr.sln
+          dotnet test src/Sonarr.sln --no-build --no-restore --filter 'Category!=ManualTest&Category!=IntegrationTest&Category!=AutomationTest&Category!=WINDOWS' --logger trx --results-directory test-results
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ln -sf /usr/bin/ffprobe _output/net10.0/ffprobe
+          python scripts/test-multiseason.py --app _output/net10.0/Sonarr.dll
+          python scripts/test-multiseason.py --app _output/net10.0/Sonarr.dll --grab-method rss
+      - name: Build and test Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./scripts/build-windows.ps1 -SkipUi
+          $assemblies = Get-ChildItem '_tests/net10.0/win-x64/publish/*Test.dll' | Where-Object { $_.Name -notin @('Sonarr.Automation.Test.dll', 'Sonarr.Integration.Test.dll') } | ForEach-Object FullName
+          dotnet vstest $assemblies '/TestCaseFilter:Category!=ManualTest&Category!=IntegrationTest&Category!=AutomationTest&Category!=LINUX' '/Logger:trx' '/ResultsDirectory:test-results'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          choco install ffmpeg --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/test-multiseason.py --app _artifacts/windows/Sonarr/Sonarr.Console.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Expand-Archive '_artifacts/sonarr-multiseason-win-x64.zip' '_artifacts/Extracted Windows Package'
+          python scripts/test-multiseason.py --app '_artifacts/Extracted Windows Package/Sonarr/Sonarr.exe' --grab-method rss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ runner.os }}
+          path: test-results/*.trx
+          retention-days: 14
+      - name: Save Windows package
+        if: success() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: sonarr-multiseason-win-x64
+          path: _artifacts/sonarr-multiseason-win-x64.zip
+          compression-level: 0
+          retention-days: 7

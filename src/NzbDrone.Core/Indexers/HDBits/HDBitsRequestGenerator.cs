@@ -21,6 +21,19 @@ namespace NzbDrone.Core.Indexers.HDBits
             return pageableRequests;
         }
 
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            var requests = new IndexerPageableRequestChain();
+            var query = new TorrentQuery();
+
+            if (TryAddSearchParameters(query, searchCriteria))
+            {
+                requests.Add(GetRequest(query));
+            }
+
+            return requests;
+        }
+
         public virtual IndexerPageableRequestChain GetSearchRequests(AnimeEpisodeSearchCriteria searchCriteria)
         {
             var pageableRequests = new IndexerPageableRequestChain();

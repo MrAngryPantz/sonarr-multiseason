@@ -21,6 +21,25 @@ namespace NzbDrone.Core.Indexers.FileList
             return pageableRequests;
         }
 
+        public virtual IndexerPageableRequestChain GetSearchRequests(MultiSeasonSearchCriteria searchCriteria)
+        {
+            var requests = new IndexerPageableRequestChain();
+            var categories = searchCriteria.Series.SeriesType == NzbDrone.Core.Tv.SeriesTypes.Anime
+                ? Settings.AnimeCategories : Settings.Categories;
+
+            if (searchCriteria.SearchMode == SearchMode.Default || searchCriteria.SearchMode.HasFlag(SearchMode.SearchID))
+            {
+                AddImdbRequests(requests, searchCriteria, "search-torrents", categories, "");
+            }
+
+            if (searchCriteria.SearchMode == SearchMode.Default || searchCriteria.SearchMode.HasFlag(SearchMode.SearchTitle))
+            {
+                AddNameRequests(requests, searchCriteria, "search-torrents", categories, "");
+            }
+
+            return requests;
+        }
+
         public IndexerPageableRequestChain GetSearchRequests(SingleEpisodeSearchCriteria searchCriteria)
         {
             var pageableRequests = new IndexerPageableRequestChain();

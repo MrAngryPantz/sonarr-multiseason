@@ -15,6 +15,7 @@ using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.IndexerSearchTests
 {
@@ -139,6 +140,65 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
                 .ReturnsAsync(new List<Parser.Model.ReleaseInfo>());
 
             return result;
+        }
+
+        private void WithPackSearch(bool enabled = true, bool upgrades = false)
+        {
+            _xemSeries.QualityProfile = new NzbDrone.Core.Profiles.Qualities.QualityProfile
+            {
+                AllowMultiSeasonPacks = enabled,
+                UpgradeAllowed = upgrades
+            };
+            WithEpisodes();
+            WatchForSearchCriteria();
+            Mocker.GetMock<IMultiSeasonSearchService>()
+                .Setup(s => s.Search(It.IsAny<IIndexer>(), It.IsAny<SearchCriteriaBase>()))
+                .ReturnsAsync(new List<Parser.Model.ReleaseInfo>
+                {
+                    new Parser.Model.ReleaseInfo { Guid = "pack", Title = "Example.Show.S01-S03.720p.WEB-DL" }
+                });
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public async Task should_not_run_broad_search_when_pack_mode_is_disabled_or_upgrades_are_enabled(bool enabled, bool upgrades)
+        {
+            WithPackSearch(enabled, upgrades);
+
+            await Subject.EpisodeSearch(_xemEpisodes.First(), true, false);
+
+            Mocker.GetMock<IMultiSeasonSearchService>().Verify(s => s.Search(It.IsAny<IIndexer>(), It.IsAny<SearchCriteriaBase>()), Times.Never());
+        }
+
+        [Test]
+        public async Task should_evaluate_pack_results_against_original_episode_search()
+        {
+            WithPackSearch();
+
+            await Subject.EpisodeSearch(_xemEpisodes.First(), true, false);
+
+            Mocker.GetMock<IMakeDownloadDecision>().Verify(s => s.GetSearchDecision(
+                It.Is<List<Parser.Model.ReleaseInfo>>(r => r.Any(p => p.Guid == "pack")),
+                It.Is<SearchCriteriaBase>(c => c is SingleEpisodeSearchCriteria && c.Episodes.Contains(_xemEpisodes.First()))),
+                Times.Once());
+        }
+
+        [Test]
+        public async Task should_keep_ordinary_results_if_pack_search_fails()
+        {
+            WithPackSearch();
+            _mockIndexer.Setup(i => i.Fetch(It.IsAny<SingleEpisodeSearchCriteria>()))
+                .ReturnsAsync(new List<Parser.Model.ReleaseInfo> { new Parser.Model.ReleaseInfo { Guid = "episode" } });
+            Mocker.GetMock<IMultiSeasonSearchService>()
+                .Setup(s => s.Search(It.IsAny<IIndexer>(), It.IsAny<SearchCriteriaBase>()))
+                .ThrowsAsync(new InvalidOperationException("Test pack query failure"));
+
+            await Subject.EpisodeSearch(_xemEpisodes.First(), true, false);
+
+            Mocker.GetMock<IMakeDownloadDecision>().Verify(s => s.GetSearchDecision(
+                It.Is<List<Parser.Model.ReleaseInfo>>(r => r.Count == 1 && r[0].Guid == "episode"), It.IsAny<SearchCriteriaBase>()),
+                Times.Once());
+            ExceptionVerification.ExpectedErrors(1);
         }
 
         [Test]

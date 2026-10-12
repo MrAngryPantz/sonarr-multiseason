@@ -72,6 +72,98 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
                 .Returns(_capabilities);
         }
 
+        private MultiSeasonSearchCriteria PackCriteria()
+        {
+            return new MultiSeasonSearchCriteria
+            {
+                Series = _seasonSearchCriteria.Series,
+                SceneTitles = _seasonSearchCriteria.SceneTitles
+            };
+        }
+
+        [TestCase("tvdbid", "20")]
+        [TestCase("imdbid", "t40")]
+        [TestCase("rid", "10")]
+        [TestCase("tvmazeid", "30")]
+        [TestCase("tmdbid", "50")]
+        public void should_search_packs_by_supported_id_without_season_support(string parameter, string value)
+        {
+            _capabilities.SupportedTvSearchParameters = new[] { parameter };
+            _capabilities.SupportedSearchParameters = null;
+
+            var requests = Subject.GetSearchRequests(PackCriteria()).GetAllTiers().Select(p => p.First()).ToList();
+
+            requests.Should().ContainSingle();
+            requests[0].Url.Query.Should().Contain($"&{parameter}={value}").And.NotContain("season=").And.NotContain("ep=");
+        }
+
+        [TestCase("q")]
+        [TestCase("title")]
+        public void should_search_packs_by_supported_tv_text_parameter(string parameter)
+        {
+            _capabilities.SupportedTvSearchParameters = new[] { parameter };
+            _capabilities.SupportedSearchParameters = null;
+
+            var requests = Subject.GetSearchRequests(PackCriteria()).GetAllTiers().Select(p => p.First()).ToList();
+
+            requests.Should().ContainSingle();
+            requests[0].Url.Query.Should().Contain($"&{parameter}=Monkey%20Island").And.NotContain("season=").And.NotContain("ep=");
+        }
+
+        [Test]
+        public void should_search_packs_with_only_generic_search_support()
+        {
+            _capabilities.SupportedTvSearchParameters = null;
+            _capabilities.SupportedSearchParameters = new[] { "q" };
+
+            var requests = Subject.GetSearchRequests(PackCriteria()).GetAllTiers().Select(p => p.First()).ToList();
+
+            requests.Should().ContainSingle();
+            requests[0].Url.Query.Should().Contain("t=search&").And.Contain("&q=Monkey%20Island");
+        }
+
+        [Test]
+        public void should_search_text_for_unmapped_packs_even_when_id_search_returns_episodes()
+        {
+            _capabilities.SupportedTvSearchParameters = new[] { "tvdbid", "q", "season", "ep" };
+
+            var requests = Subject.GetSearchRequests(PackCriteria());
+
+            requests.Tiers.Should().Be(1);
+            requests.GetTier(0).Should().HaveCount(3);
+        }
+
+        [Test]
+        public void should_use_anime_categories_for_every_pack_query()
+        {
+            var criteria = PackCriteria();
+            criteria.Series.SeriesType = Tv.SeriesTypes.Anime;
+
+            var requests = Subject.GetSearchRequests(criteria).GetAllTiers().Select(p => p.First()).ToList();
+
+            requests.Should().HaveCount(3);
+            requests.Should().OnlyContain(r => r.Url.Query.Contains("&cat=3,4&"));
+        }
+
+        [TestCase(NzbDrone.Core.DataAugmentation.Scene.SearchMode.SearchID, 1)]
+        [TestCase(NzbDrone.Core.DataAugmentation.Scene.SearchMode.SearchTitle, 2)]
+        public void should_respect_pack_search_mode(NzbDrone.Core.DataAugmentation.Scene.SearchMode mode, int count)
+        {
+            var criteria = PackCriteria();
+            criteria.SearchMode = mode;
+
+            Subject.GetSearchRequests(criteria).GetAllTiers().Should().HaveCount(count);
+        }
+
+        [Test]
+        public void should_not_send_pack_requests_without_search_capabilities()
+        {
+            _capabilities.SupportedTvSearchParameters = null;
+            _capabilities.SupportedSearchParameters = null;
+
+            Subject.GetSearchRequests(PackCriteria()).GetAllTiers().Should().BeEmpty();
+        }
+
         [Test]
         public void should_use_all_categories_for_feed()
         {
@@ -82,6 +174,16 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             var page = results.GetAllTiers().First().First();
 
             page.Url.Query.Should().Contain("&cat=1,2,3,4&");
+        }
+
+        [Test]
+        public void should_include_tv_categories_for_generic_only_feed()
+        {
+            _capabilities.SupportedTvSearchParameters = null;
+
+            var request = Subject.GetRecentRequests().GetAllTiers().Single().First();
+
+            request.Url.Query.Should().Contain("t=search&").And.Contain("&cat=1,2,3,4&");
         }
 
         [Test]
